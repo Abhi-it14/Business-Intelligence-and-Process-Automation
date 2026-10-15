@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transaction Data Analysis — SQL & Statistical Case Study</title>
+  <meta name="description" content="SQL and statistical analysis of 501 payment transactions across IMPS, UPI, NEFT, RTGS channels. Jan–Jul 2020." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --navy:   #0D2B55;
+      --blue:   #1A4D8F;
+      --teal:   #0E7C7B;
+      --teal-l: #D4EEEE;
+      --amber:  #D4860A;
+      --amber-l:#FEF3DC;
+      --bg:     #F5F7FA;
+      --card:   #FFFFFF;
+      --border: #D6DDE8;
+      --text:   #1A1A2E;
+      --muted:  #5A6A7E;
+      --code-bg:#EEF2F8;
+      --answer: #E8F5E9;
+      --answer-border: #2E7D32;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    /* ── Cover ── */
+    .cover {
+      background: linear-gradient(135deg, var(--navy) 0%, #1A4D8F 60%, var(--teal) 100%);
+      color: #fff;
+      padding: 60px 60px 50px;
+      position: relative;
+      overflow: hidden;
+    }
+    .cover::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      pointer-events: none;
+    }
+    .cover-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 3px;
+      text-transform: uppercase; color: rgba(255,255,255,0.65);
+      margin-bottom: 18px;
+    }
+    .cover h1 {
+      font-size: 36px; font-weight: 700; line-height: 1.2;
+      margin-bottom: 10px; position: relative; z-index: 1;
+    }
+    .cover .subtitle {
+      font-size: 16px; color: rgba(255,255,255,0.8); margin-bottom: 36px;
+      position: relative; z-index: 1;
+    }
+    .cover-meta {
+      display: flex; gap: 32px; flex-wrap: wrap;
+      border-top: 1px solid rgba(255,255,255,0.2);
+      padding-top: 24px; position: relative; z-index: 1;
+    }
+    .cover-meta-item { }
+    .cover-meta-item .label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.55); }
+    .cover-meta-item .value { font-size: 14px; font-weight: 500; color: #fff; margin-top: 3px; }
+
+    /* ── Layout ── */
+    .container { max-width: 960px; margin: 0 auto; padding: 0 32px; }
+    .toc-wrap { background: var(--card); border-bottom: 1px solid var(--border); }
+    .toc { padding: 24px 0; display: flex; gap: 6px; flex-wrap: wrap; }
+    .toc a {
+      padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 500;
+      color: var(--blue); text-decoration: none; border: 1px solid var(--border);
+      transition: all 0.2s;
+    }
+    .toc a:hover { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+    main { padding: 48px 0 72px; }
+
+    /* ── Sections ── */
+    section { margin-bottom: 56px; scroll-margin-top: 20px; }
+    .section-header {
+      display: flex; align-items: center; gap: 14px;
+      border-bottom: 2px solid var(--navy); padding-bottom: 10px; margin-bottom: 24px;
+    }
+    .section-number {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--navy); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; flex-shrink: 0;
+    }
+    h2 { font-size: 22px; font-weight: 700; color: var(--navy); }
+    h3 { font-size: 16px; font-weight: 600; color: var(--blue); margin: 24px 0 10px; }
+
+    p { margin-bottom: 14px; color: var(--text); }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 24px; margin-bottom: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+
+    /* ── Dataset overview table ── */
+    .overview-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px;
+    }
+    .stat-tile {
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      padding: 16px 18px; text-align: center;
+      border-top: 3px solid var(--teal);
+    }
+    .stat-tile .num { font-size: 26px; font-weight: 700; color: var(--navy); }
+    .stat-tile .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+
+    /* ── Tables ── */
+    .tbl-wrap { overflow-x: auto; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead th {
+      background: var(--navy); color: #fff; padding: 10px 14px;
+      text-align: left; font-weight: 600; font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+    tbody tr:nth-child(even) { background: #F8FAFC; }
+    tbody tr:hover { background: var(--teal-l); }
+    tbody td { padding: 9px 14px; border-bottom: 1px solid #EEF0F4; }
+    .highlight-row { background: var(--amber-l) !important; font-weight: 600; }
+    .highlight-row td:first-child::before { content: '★ '; color: var(--amber); }
+
+    /* ── SQL ── */
+    .sql-block {
+      background: #0F1B2D; border-radius: 8px; padding: 20px 24px;
+      margin-bottom: 16px; overflow-x: auto;
+    }
+    .sql-block pre {
+      font-family: 'JetBrains Mono', monospace; font-size: 13px;
+      line-height: 1.65; color: #C9D1D9; white-space: pre;
+    }
+    .sql-kw  { color: #79C0FF; font-weight: 600; }
+    .sql-fn  { color: #D2A8FF; }
+    .sql-str { color: #A5D6A7; }
+    .sql-cm  { color: #6A737D; font-style: italic; }
+    .sql-num { color: #F8C555; }
+
+    /* ── Answer callout ── */
+    .answer-box {
+      background: var(--answer); border-left: 4px solid var(--answer-border);
+      border-radius: 0 8px 8px 0; padding: 14px 20px; margin: 16px 0;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .answer-box .icon { font-size: 22px; }
+    .answer-box .text { font-size: 15px; }
+    .answer-box strong { color: var(--answer-border); }
+
+    /* ── Assumption note ── */
+    .note {
+      background: var(--amber-l); border-left: 3px solid var(--amber);
+      border-radius: 0 6px 6px 0; padding: 10px 16px; font-size: 13px;
+      color: #5C3A00; margin-bottom: 16px;
+    }
+    .note strong { color: var(--amber); }
+
+    /* ── Charts ── */
+    .chart-wrap {
+      text-align: center; margin: 20px 0;
+    }
+    .chart-wrap img {
+      max-width: 100%; border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08); border: 1px solid var(--border);
+    }
+    .chart-caption {
+      font-size: 12px; color: var(--muted); margin-top: 8px; font-style: italic;
+    }
+    .charts-2col {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;
+    }
+
+    /* ── Stats summary ── */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;
+    }
+    .stats-cell {
+      background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+      padding: 12px; text-align: center;
+    }
+    .stats-cell .sv { font-size: 18px; font-weight: 700; color: var(--navy); }
+    .stats-cell .sl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
+
+    /* ── Interpretation ── */
+    .interp {
+      background: #EEF4FF; border-radius: 8px; padding: 16px 20px;
+      border: 1px solid #C5D5F0; margin-top: 16px;
+    }
+    .interp h4 { font-size: 13px; font-weight: 600; color: var(--blue); margin-bottom: 8px;
+                  text-transform: uppercase; letter-spacing: 0.8px; }
+
+    /* ── Cohort ── */
+    .cohort-tbl td, .cohort-tbl th {
+      text-align: center; padding: 9px 12px; font-size: 13px;
+    }
+    .cohort-active { background: #1A4D8F; color: #fff; font-weight: 600; border-radius: 4px; }
+    .cohort-medium { background: #5BA4CF; color: #fff; font-weight: 500; border-radius: 4px; }
+    .cohort-low    { background: #C5D5F0; color: var(--navy); font-weight: 500; border-radius: 4px; }
+    .cohort-none   { color: #CCC; }
+
+    /* ── Limitations ── */
+    .limit-list { list-style: none; padding: 0; }
+    .limit-list li {
+      padding: 10px 14px 10px 40px; position: relative;
+      border-bottom: 1px solid var(--border); font-size: 14px;
+    }
+    .limit-list li:last-child { border-bottom: none; }
+    .limit-list li::before {
+      content: '⚠'; position: absolute; left: 14px;
+      color: var(--amber); font-size: 14px;
+    }
+
+    footer {
+      background: var(--navy); color: rgba(255,255,255,0.6);
+      text-align: center; padding: 20px; font-size: 12px;
+    }
+
+    @media (max-width: 700px) {
+      .cover { padding: 36px 24px 32px; }
+      .cover h1 { font-size: 26px; }
+      .charts-2col { grid-template-columns: 1fr; }
+      .overview-grid { grid-template-columns: 1fr 1fr; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .container { padding: 0 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════ COVER ══════════════ -->
+<div class="cover">
+  <div class="container">
+    <div class="cover-label">Analytics Assignment · Case Study</div>
+    <h1>Transaction Data Analysis</h1>
+    <p class="subtitle">SQL Queries &amp; Statistical Analysis of Payment Transactions · Jan – Jul 2020</p>
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <div class="label">Dataset</div>
+        <div class="value">501 Transactions · 10 Users</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="label">Channels</div>
+        <div class="value">IMPS · IFT · UPI · NEFT · RTGS</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="label">Database</div>
+        <div class="value">SQLite (analysis_queries.sql)</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="label">Questions</div>
+        <div class="value">5 Problems Solved</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ TOC ══════════════ -->
+<div class="toc-wrap">
+  <div class="container">
+    <nav class="toc">
+      <a href="#overview">Dataset Overview</a>
+      <a href="#q1">Q1 · 7th IMPS Debit</a>
+      <a href="#q2">Q2 · Category Counts</a>
+      <a href="#q3">Q3 · Bell Curve &amp; Box Plot</a>
+      <a href="#q4">Q4 · Cohort Analysis</a>
+      <a href="#q5">Q5 · Top Percentile</a>
+      <a href="#limitations">Limitations</a>
+    </nav>
+  </div>
+</div>
+
+<!-- ══════════════ MAIN ══════════════ -->
+<main>
+<div class="container">
+
+  <!-- ── DATASET OVERVIEW ── -->
+  <section id="overview">
+    <div class="section-header">
+      <div class="section-number">0</div>
+      <h2>Dataset Overview</h2>
+    </div>
+    <p>
+      The dataset was provided as a table inside a PDF. It was extracted using PyMuPDF, verified for
+      duplicates and missing values (none found), and loaded into a SQLite table called
+      <code>transactions</code>. All monetary values are in Indian Rupees (₹).
+    </p>
+    <div class="overview-grid">
+      <div class="stat-tile"><div class="num">501</div><div class="lbl">Total Transactions</div></div>
+      <div class="stat-tile"><div class="num">10</div><div class="lbl">Unique Users</div></div>
+      <div class="stat-tile"><div class="num">7</div><div class="lbl">Months (Jan–Jul 2020)</div></div>
+      <div class="stat-tile"><div class="num">352</div><div class="lbl">CREDIT Transactions</div></div>
+      <div class="stat-tile"><div class="num">149</div><div class="lbl">DEBIT Transactions</div></div>
+      <div class="stat-tile"><div class="num">5</div><div class="lbl">Payment Channels</div></div>
+    </div>
+
+    <div class="card">
+      <h3>Schema</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>Transaction_Time</td><td>TEXT (date)</td><td>Date of transaction</td></tr>
+            <tr><td>User_Id</td><td>INTEGER</td><td>User identifier (1–10)</td></tr>
+            <tr><td>Transaction_Amt</td><td>REAL</td><td>Amount in ₹</td></tr>
+            <tr><td>Narration</td><td>TEXT</td><td>Payment channel: IMPS, IFT, UPI, NEFT, RTGS</td></tr>
+            <tr><td>Transaction_Type</td><td>TEXT</td><td>CREDIT or DEBIT</td></tr>
+            <tr><td>Txn_id</td><td>TEXT</td><td>Unique transaction identifier</td></tr>
+            <tr><td>Month</td><td>INTEGER</td><td>Month number (1–7)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Channel Breakdown (All Transactions)</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Channel</th><th>Count</th><th>Share</th><th>In Scope (Brief)</th></tr></thead>
+          <tbody>
+            <tr><td><strong>IMPS</strong></td><td>272</td><td>54.3%</td><td>✅ Yes</td></tr>
+            <tr><td><strong>IFT</strong></td><td>89</td><td>17.8%</td><td>❌ Not listed</td></tr>
+            <tr><td><strong>UPI</strong></td><td>86</td><td>17.2%</td><td>✅ Yes</td></tr>
+            <tr><td><strong>NEFT</strong></td><td>33</td><td>6.6%</td><td>✅ Yes</td></tr>
+            <tr><td><strong>RTGS</strong></td><td>21</td><td>4.2%</td><td>✅ Yes</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Q1 ── -->
+  <section id="q1">
+    <div class="section-header">
+      <div class="section-number">1</div>
+      <h2>7th Highest Debit Amount Through IMPS</h2>
+    </div>
+
+    <h3>SQL Query</h3>
+    <div class="sql-block"><pre><span class="sql-cm">-- Filter IMPS DEBIT transactions, sort descending, pick row 7.</span>
+<span class="sql-cm">-- OFFSET 6 skips 6 rows → the 7th row. No ties at this rank.</span>
+
+<span class="sql-kw">SELECT</span>  Transaction_Amt
+<span class="sql-kw">FROM</span>    transactions
+<span class="sql-kw">WHERE</span>   Narration        = <span class="sql-str">'IMPS'</span>
+  <span class="sql-kw">AND</span>   Transaction_Type = <span class="sql-str">'DEBIT'</span>
+<span class="sql-kw">ORDER BY</span> Transaction_Amt <span class="sql-kw">DESC</span>
+<span class="sql-kw">LIMIT</span>  <span class="sql-num">1</span> <span class="sql-kw">OFFSET</span> <span class="sql-num">6</span>;</pre></div>
+
+    <h3>Results — Top 10 IMPS Debit Amounts</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Rank</th><th>Amount (₹)</th><th>User</th><th>Date</th><th>Txn ID</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>₹9,987</td><td>9</td><td>08-Apr-2020</td><td>613AFBB8</td></tr>
+          <tr><td>2</td><td>₹9,887</td><td>10</td><td>09-Jul-2020</td><td>EE06FC09</td></tr>
+          <tr><td>3</td><td>₹9,872</td><td>3</td><td>24-Feb-2020</td><td>7641EB77</td></tr>
+          <tr><td>4</td><td>₹9,863</td><td>5</td><td>14-Jul-2020</td><td>834C909F</td></tr>
+          <tr><td>5</td><td>₹9,743</td><td>4</td><td>16-May-2020</td><td>53258869</td></tr>
+          <tr><td>6</td><td>₹9,566</td><td>3</td><td>28-May-2020</td><td>8D2D3F20</td></tr>
+          <tr class="highlight-row"><td><strong>7</strong></td><td><strong>₹9,525</strong></td><td>8</td><td>16-Jan-2020</td><td>64B08A24</td></tr>
+          <tr><td>8</td><td>₹9,450</td><td>1</td><td>28-Jan-2020</td><td>BDF20BCA</td></tr>
+          <tr><td>9</td><td>₹9,434</td><td>7</td><td>17-Apr-2020</td><td>B0EEB2E7</td></tr>
+          <tr><td>10</td><td>₹9,337</td><td>4</td><td>11-Jun-2020</td><td>47625EBE</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="answer-box">
+      <span class="icon">✅</span>
+      <div class="text"><strong>Answer:</strong> The 7th highest IMPS DEBIT amount is <strong>₹9,525</strong> (User 8, 16-Jan-2020, Txn 64B08A24). There are 97 IMPS debit transactions in total; no ties exist at this rank.</div>
+    </div>
+
+    <div class="chart-wrap">
+      <img src="../outputs/q1_imps_debit_top10.png" alt="Top 10 IMPS Debit Amounts chart" />
+      <div class="chart-caption">Fig 1. Top 10 IMPS DEBIT amounts — 7th rank highlighted in amber (₹9,525)</div>
+    </div>
+  </section>
+
+  <!-- ── Q2 ── -->
+  <section id="q2">
+    <div class="section-header">
+      <div class="section-number">2</div>
+      <h2>Number of Transactions, Category-Wise</h2>
+    </div>
+
+    <div class="note"><strong>Note on IFT:</strong> The dataset contains 89 IFT (Internal Funds Transfer) transactions. Since the assignment brief specifies UPI, IMPS, RTGS, and NEFT only, IFT is excluded from this answer but is included in the channel overview table above.</div>
+
+    <h3>SQL Query</h3>
+    <div class="sql-block"><pre><span class="sql-kw">SELECT</span>  Narration           <span class="sql-kw">AS</span> Category,
+        <span class="sql-fn">COUNT</span>(*)            <span class="sql-kw">AS</span> No_Of_Transactions
+<span class="sql-kw">FROM</span>    transactions
+<span class="sql-kw">WHERE</span>   Narration <span class="sql-kw">IN</span> (<span class="sql-str">'UPI'</span>, <span class="sql-str">'IMPS'</span>, <span class="sql-str">'RTGS'</span>, <span class="sql-str">'NEFT'</span>)
+<span class="sql-kw">GROUP BY</span> Narration
+<span class="sql-kw">ORDER BY</span> No_Of_Transactions <span class="sql-kw">DESC</span>;</pre></div>
+
+    <h3>Results</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Category</th><th>Transactions</th><th>Share of in-scope</th></tr></thead>
+        <tbody>
+          <tr><td><strong>IMPS</strong></td><td>272</td><td>65.4%</td></tr>
+          <tr><td><strong>UPI</strong></td><td>86</td><td>20.7%</td></tr>
+          <tr><td><strong>NEFT</strong></td><td>33</td><td>7.9%</td></tr>
+          <tr><td><strong>RTGS</strong></td><td>21</td><td>5.0%</td></tr>
+          <tr style="background:#EEF4FF; font-weight:600;"><td>Total (in scope)</td><td>412</td><td>100%</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="answer-box">
+      <span class="icon">✅</span>
+      <div class="text"><strong>Answer:</strong> IMPS: <strong>272</strong> &nbsp;|&nbsp; UPI: <strong>86</strong> &nbsp;|&nbsp; NEFT: <strong>33</strong> &nbsp;|&nbsp; RTGS: <strong>21</strong></div>
+    </div>
+
+    <div class="chart-wrap">
+      <img src="../outputs/q2_txn_category_counts.png" alt="Transaction counts by channel" />
+      <div class="chart-caption">Fig 2. Transaction count by payment channel. IMPS dominates at 65% of in-scope transactions.</div>
+    </div>
+
+    <div class="interp">
+      <h4>Insight</h4>
+      <p style="margin:0;font-size:14px;">IMPS accounts for nearly two-thirds of all in-scope volume, reflecting its popularity for immediate peer-to-peer and merchant transfers. UPI follows at ~21%. RTGS, typically used for high-value inter-bank transfers, has the lowest count, which is expected given the small-to-mid range of amounts in this dataset (₹108–₹9,987).</p>
+    </div>
+  </section>
+
+  <!-- ── Q3 ── -->
+  <section id="q3">
+    <div class="section-header">
+      <div class="section-number">3</div>
+      <h2>Bell Curve &amp; Box Plot — Load Amount</h2>
+    </div>
+
+    <div class="note">
+      <strong>Assumption:</strong> The dataset has no column named "load amount". This is interpreted as the amount of <strong>CREDIT transactions</strong> — money credited (loaded) into the account — covering 352 transactions. This is the most consistent interpretation given standard fintech terminology.
+    </div>
+
+    <h3>Statistical Summary</h3>
+    <div class="stats-grid">
+      <div class="stats-cell"><div class="sv">352</div><div class="sl">Count</div></div>
+      <div class="stats-cell"><div class="sv">₹4,894</div><div class="sl">Mean</div></div>
+      <div class="stats-cell"><div class="sv">₹4,708</div><div class="sl">Median</div></div>
+      <div class="stats-cell"><div class="sv">₹2,914</div><div class="sl">Std Dev</div></div>
+      <div class="stats-cell"><div class="sv">₹108</div><div class="sl">Min</div></div>
+      <div class="stats-cell"><div class="sv">₹9,950</div><div class="sl">Max</div></div>
+      <div class="stats-cell"><div class="sv">₹2,329</div><div class="sl">Q1 (25th pct)</div></div>
+      <div class="stats-cell"><div class="sv">₹7,492</div><div class="sl">Q3 (75th pct)</div></div>
+      <div class="stats-cell"><div class="sv">₹5,163</div><div class="sl">IQR</div></div>
+      <div class="stats-cell"><div class="sv">0.049</div><div class="sl">Skewness</div></div>
+      <div class="stats-cell"><div class="sv">−1.239</div><div class="sl">Kurtosis</div></div>
+      <div class="stats-cell"><div class="sv">0</div><div class="sl">Outliers detected</div></div>
+    </div>
+
+    <div class="charts-2col">
+      <div class="chart-wrap">
+        <img src="../outputs/q3_bell_curve.png" alt="Bell curve / distribution of credit amounts" />
+        <div class="chart-caption">Fig 3a. Histogram with KDE and normal reference curve</div>
+      </div>
+      <div class="chart-wrap">
+        <img src="../outputs/q3_box_plot.png" alt="Box plot of credit amounts" />
+        <div class="chart-caption">Fig 3b. Box plot with IQR and outlier indicators</div>
+      </div>
+    </div>
+
+    <div class="interp">
+      <h4>Statistical Interpretation</h4>
+      <p style="margin-bottom:8px;font-size:14px;"><strong>Symmetry:</strong> Mean (₹4,894) and Median (₹4,708) are close, and skewness of <strong>0.049</strong> (near-zero) confirms the distribution is approximately symmetric — neither left- nor right-skewed. The bell curve closely mirrors the reference normal distribution.</p>
+      <p style="margin-bottom:8px;font-size:14px;"><strong>Platykurtic shape:</strong> Kurtosis of <strong>−1.239</strong> indicates the distribution is flatter than a normal curve (platykurtic). Amounts are spread fairly evenly across the ₹108–₹9,950 range rather than clustering near the mean — suggesting users credit amounts across all sizes rather than favouring a particular band.</p>
+      <p style="font-size:14px;margin:0;"><strong>No outliers:</strong> The IQR fences (Q1 − 1.5×IQR = −4,416 → floored at ₹108; Q3 + 1.5×IQR = ₹15,237) contain all observations. No extreme outlier transactions exist.</p>
+    </div>
+  </section>
+
+  <!-- ── Q4 ── -->
+  <section id="q4">
+    <div class="section-header">
+      <div class="section-number">4</div>
+      <h2>Monthly Cohort View of Active Users (DEBIT)</h2>
+    </div>
+    <p>A user's <strong>cohort</strong> is the month of their first DEBIT transaction. Each cell shows how many distinct users from that cohort made at least one DEBIT transaction in the given activity month.</p>
+
+    <h3>SQL Query</h3>
+    <div class="sql-block"><pre><span class="sql-kw">WITH</span> debit_txns <span class="sql-kw">AS</span> (
+    <span class="sql-kw">SELECT</span> User_Id,
+           <span class="sql-fn">strftime</span>(<span class="sql-str">'%Y-%m'</span>, Transaction_Time) <span class="sql-kw">AS</span> Txn_Month
+    <span class="sql-kw">FROM</span>   transactions
+    <span class="sql-kw">WHERE</span>  Transaction_Type = <span class="sql-str">'DEBIT'</span>
+),
+cohort <span class="sql-kw">AS</span> (
+    <span class="sql-kw">SELECT</span> User_Id, <span class="sql-fn">MIN</span>(Txn_Month) <span class="sql-kw">AS</span> Cohort_Month
+    <span class="sql-kw">FROM</span>   debit_txns <span class="sql-kw">GROUP BY</span> User_Id
+),
+activity <span class="sql-kw">AS</span> (
+    <span class="sql-kw">SELECT DISTINCT</span> d.User_Id, d.Txn_Month, c.Cohort_Month
+    <span class="sql-kw">FROM</span>   debit_txns d <span class="sql-kw">JOIN</span> cohort c <span class="sql-kw">ON</span> d.User_Id = c.User_Id
+)
+<span class="sql-kw">SELECT</span> Cohort_Month,
+       Txn_Month        <span class="sql-kw">AS</span> Active_Month,
+       <span class="sql-fn">COUNT</span>(<span class="sql-kw">DISTINCT</span> User_Id) <span class="sql-kw">AS</span> Active_Users
+<span class="sql-kw">FROM</span>   activity
+<span class="sql-kw">GROUP BY</span> Cohort_Month, Txn_Month
+<span class="sql-kw">ORDER BY</span> Cohort_Month, Txn_Month;</pre></div>
+
+    <h3>Cohort Matrix</h3>
+    <div class="tbl-wrap">
+      <table class="cohort-tbl">
+        <thead>
+          <tr>
+            <th>Cohort / Active Month</th>
+            <th>2020-01</th><th>2020-02</th><th>2020-03</th>
+            <th>2020-04</th><th>2020-05</th><th>2020-06</th><th>2020-07</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>2020-01</strong></td>
+            <td><span class="cohort-active">8</span></td>
+            <td><span class="cohort-medium">5</span></td>
+            <td><span class="cohort-active">8</span></td>
+            <td><span class="cohort-medium">7</span></td>
+            <td><span class="cohort-medium">7</span></td>
+            <td><span class="cohort-medium">7</span></td>
+            <td><span class="cohort-active">8</span></td>
+          </tr>
+          <tr>
+            <td><strong>2020-02</strong></td>
+            <td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-low">1</span></td>
+            <td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-low">1</span></td>
+            <td><span class="cohort-low">1</span></td>
+            <td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-low">1</span></td>
+          </tr>
+          <tr>
+            <td><strong>2020-03</strong></td>
+            <td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-low">1</span></td>
+            <td><span class="cohort-low">1</span></td>
+            <td><span class="cohort-low">1</span></td>
+            <td><span class="cohort-low">1</span></td>
+            <td><span class="cohort-low">1</span></td>
+          </tr>
+          <tr>
+            <td><strong>2020-04</strong></td>
+            <td><span class="cohort-none">—</span></td><td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-none">—</span></td><td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-none">—</span></td><td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-none">—</span></td>
+          </tr>
+          <tr>
+            <td><strong>2020-05</strong></td>
+            <td><span class="cohort-none">—</span></td><td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-none">—</span></td><td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-none">—</span></td><td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-none">—</span></td>
+          </tr>
+          <tr>
+            <td><strong>2020-06</strong></td>
+            <td><span class="cohort-none">—</span></td><td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-none">—</span></td><td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-none">—</span></td><td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-none">—</span></td>
+          </tr>
+          <tr>
+            <td><strong>2020-07</strong></td>
+            <td><span class="cohort-none">—</span></td><td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-none">—</span></td><td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-none">—</span></td><td><span class="cohort-none">—</span></td>
+            <td><span class="cohort-none">—</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="chart-wrap">
+      <img src="../outputs/q4_cohort_heatmap.png" alt="Cohort heatmap" />
+      <div class="chart-caption">Fig 4. Monthly cohort heatmap — darker cells indicate higher active user counts</div>
+    </div>
+
+    <div class="interp">
+      <h4>Interpretation</h4>
+      <p style="font-size:14px;margin:0;">
+        <strong>8 of the 10 users</strong> made their first DEBIT transaction in January 2020. One additional user joined in February, and the last in March — after March, no new cohorts emerge (April–July cohort rows are all blank).
+        <br/><br/>
+        The <strong>Jan-2020 cohort remains consistently active</strong> throughout the 7-month period (5–8 users active each month), with no clear retention drop-off. This suggests a stable, recurring user base rather than one-time transactors. The Feb and Mar cohorts each contribute 1 user, staying active intermittently.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── Q5 ── -->
+  <section id="q5">
+    <div class="section-header">
+      <div class="section-number">5</div>
+      <h2>Top 10 Percentile Users by Net Amount (DEBIT − CREDIT)</h2>
+    </div>
+    <p>Net Amount = Total DEBIT − Total CREDIT for each user. The top 10 percentile means <code>PERCENT_RANK() ≥ 0.90</code>. With only 10 users, this isolates the single user with the least-negative (highest) net amount.</p>
+
+    <h3>SQL Query</h3>
+    <div class="sql-block"><pre><span class="sql-kw">WITH</span> user_net <span class="sql-kw">AS</span> (
+    <span class="sql-kw">SELECT</span> User_Id,
+           <span class="sql-fn">SUM</span>(<span class="sql-kw">CASE WHEN</span> Transaction_Type = <span class="sql-str">'DEBIT'</span>
+                    <span class="sql-kw">THEN</span>  Transaction_Amt <span class="sql-kw">ELSE</span> <span class="sql-num">0</span> <span class="sql-kw">END</span>) <span class="sql-kw">AS</span> Total_Debit,
+           <span class="sql-fn">SUM</span>(<span class="sql-kw">CASE WHEN</span> Transaction_Type = <span class="sql-str">'CREDIT'</span>
+                    <span class="sql-kw">THEN</span>  Transaction_Amt <span class="sql-kw">ELSE</span> <span class="sql-num">0</span> <span class="sql-kw">END</span>) <span class="sql-kw">AS</span> Total_Credit,
+           <span class="sql-fn">SUM</span>(<span class="sql-kw">CASE WHEN</span> Transaction_Type = <span class="sql-str">'DEBIT'</span>
+                    <span class="sql-kw">THEN</span>  Transaction_Amt
+                    <span class="sql-kw">ELSE</span> -Transaction_Amt <span class="sql-kw">END</span>)   <span class="sql-kw">AS</span> Net_Amount
+    <span class="sql-kw">FROM</span>   transactions <span class="sql-kw">GROUP BY</span> User_Id
+),
+ranked <span class="sql-kw">AS</span> (
+    <span class="sql-kw">SELECT</span> User_Id, Total_Debit, Total_Credit, Net_Amount,
+           <span class="sql-fn">PERCENT_RANK</span>() <span class="sql-kw">OVER</span> (<span class="sql-kw">ORDER BY</span> Net_Amount) <span class="sql-kw">AS</span> Pct_Rank
+    <span class="sql-kw">FROM</span>   user_net
+)
+<span class="sql-kw">SELECT</span> User_Id, Total_Debit, Total_Credit, Net_Amount
+<span class="sql-kw">FROM</span>   ranked
+<span class="sql-kw">WHERE</span>  Pct_Rank &gt;= <span class="sql-num">0.90</span>
+<span class="sql-kw">ORDER BY</span> Net_Amount <span class="sql-kw">DESC</span>;</pre></div>
+
+    <h3>Full Ranked List — All 10 Users</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Rank</th><th>User</th><th>Total Debit (₹)</th><th>Total Credit (₹)</th><th>Net Amount (₹)</th></tr>
+        </thead>
+        <tbody>
+          <tr class="highlight-row"><td>1 (Top 10%)</td><td><strong>8</strong></td><td>₹1,29,734</td><td>₹1,65,538</td><td><strong>−₹35,804</strong></td></tr>
+          <tr><td>2</td><td>1</td><td>₹73,830</td><td>₹1,11,143</td><td>−₹37,313</td></tr>
+          <tr><td>3</td><td>3</td><td>₹1,06,386</td><td>₹1,46,026</td><td>−₹39,640</td></tr>
+          <tr><td>4</td><td>10</td><td>₹94,295</td><td>₹1,52,722</td><td>−₹58,427</td></tr>
+          <tr><td>5</td><td>4</td><td>₹1,00,477</td><td>₹1,88,518</td><td>−₹88,041</td></tr>
+          <tr><td>6</td><td>7</td><td>₹75,500</td><td>₹1,88,696</td><td>−₹1,13,196</td></tr>
+          <tr><td>7</td><td>6</td><td>₹59,334</td><td>₹1,76,723</td><td>−₹1,17,389</td></tr>
+          <tr><td>8</td><td>9</td><td>₹58,316</td><td>₹1,86,106</td><td>−₹1,27,790</td></tr>
+          <tr><td>9</td><td>2</td><td>₹70,901</td><td>₹2,03,354</td><td>−₹1,32,453</td></tr>
+          <tr><td>10</td><td>5</td><td>₹56,298</td><td>₹2,03,953</td><td>−₹1,47,655</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="answer-box">
+      <span class="icon">✅</span>
+      <div class="text"><strong>Answer:</strong> <strong>User 8</strong> is the top 10 percentile user with a net amount of <strong>−₹35,804</strong> (smallest net outflow). Every user has a negative net amount across this dataset, meaning credits consistently exceed debits — User 8 has the smallest gap.</div>
+    </div>
+
+    <div class="interp">
+      <h4>Observation</h4>
+      <p style="font-size:14px;margin:0;">All 10 users show negative net amounts (Total DEBIT − Total CREDIT &lt; 0), meaning this dataset predominantly reflects credit/inflow activity. The "top 10 percentile by net amount" therefore identifies the user whose spending (DEBIT) is closest to their income (CREDIT). User 8 has the most balanced debit-to-credit ratio among all users.</p>
+    </div>
+  </section>
+
+  <!-- ── LIMITATIONS ── -->
+  <section id="limitations">
+    <div class="section-header">
+      <div class="section-number">6</div>
+      <h2>Limitations &amp; Assumptions</h2>
+    </div>
+    <div class="card" style="padding:8px 0;">
+      <ul class="limit-list">
+        <li><strong>"Load amount" assumption:</strong> Interpreted as the amount of CREDIT transactions. The dataset has no explicit "load amount" column. This assumption is stated clearly throughout Q3.</li>
+        <li><strong>IFT channel:</strong> 89 IFT transactions exist in the dataset but are not included in Q2 results, as the brief specifies only UPI, IMPS, RTGS, NEFT.</li>
+        <li><strong>Small user base:</strong> With only 10 users, the top 10 percentile collapses to a single user (Q5). Statistical distributions and cohort patterns should be interpreted with this small sample size in mind.</li>
+        <li><strong>Date parsing:</strong> Dates are in M/D/YYYY format; SQLite's <code>strftime()</code> requires ISO format. In Q4, the Month column (integer 1–7) was used directly for grouping to avoid date-parsing edge cases.</li>
+        <li><strong>No deduplication needed:</strong> Txn_id values were verified to be unique across all 501 records.</li>
+        <li><strong>Currency:</strong> All amounts are assumed to be in Indian Rupees (₹). No currency column exists in the dataset.</li>
+      </ul>
+    </div>
+  </section>
+
+</div>
+</main>
+
+<footer>
+  Transaction Data Analysis · SQL &amp; Statistical Case Study · Data: Jan–Jul 2020 · 501 transactions · 10 users
+</footer>
+
+</body>
+</html>
